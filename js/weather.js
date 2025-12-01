@@ -1,85 +1,131 @@
-async function geocodeCity(name) { // Converts a city's name to latitude and longitude.
-  const url = `https://geocoding-api.open-meteo.com/v1/search?name=${encodeURIComponent(name)}&count=1`;
-  const res = await fetch(url);
-  if (!res.ok) throw new Error("Geocoding failed");
-  const data = await res.json();
-  const hit = data.results?.[0];
-  if (!hit) throw new Error("No results");
-  return { lat: hit.latitude, lon: hit.longitude, label: `${hit.name}, ${hit.country_code}` };
+const cityInput = document.querySelector(".city-input");
+const searchBtn = document.querySelector(".search-btn");
+const apikey = '6350a60642afa820e560351ad616d33c';
+const errscreen = document.querySelector(".not-found");
+const searchsection = document.querySelector(".search-city");
+const weathersection = document.querySelector(".weather-info");
+const countrytxt = document.querySelector(".country-txt");
+const temptxt = document.querySelector(".temp-txt");
+const feelstxt = document.querySelector(".feels-txt");
+const conditiontxt = document.querySelector(".condition-txt");
+const humiditytxt = document.querySelector(".humidity-value-txt");
+const windtxt = document.querySelector(".wind-value-txt");
+const weatherimg = document.querySelector(".weather-summary-img");
+const currentdate = document.querySelector(".current-date-txt");
+const forecastContainer = document.querySelector(".forecast-items-container");
+
+
+function getCurrentDate(){
+    const date = new Date();
+    const options = {
+        weekday: "short",
+        month: "short",
+        day: "2-digit"
+    };
+    return date.toLocaleDateString("en-US", options);
 }
 
-async function fetchForecast(lat, lon) { // Gets the 7-day forecast of a city.
-  const url =
-    `https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lon}` +
-    `&daily=temperature_2m_max,temperature_2m_min,precipitation_probability_mean` +
-    `&timezone=auto&temperature_unit=fahrenheit`;
-  const res = await fetch(url);
-  if (!res.ok) throw new Error("Forecast failed");
-  return await res.json();
+async function getFetchData(endpoint, city){
+    const apiurl = `https://api.openweathermap.org/data/2.5/${endpoint}?q=${city}&appid=${apikey}&units=imperial`;
+    const response = await fetch(apiurl);
+    return await response.json();
 }
 
-function withinTrip(dateStr) { // Check if the given date is within a trip's range.
-  const trip = getCurrentTrip();
-  if (!trip) return true;
-  const d = new Date(dateStr);
-  return d >= new Date(trip.start) && d <= new Date(trip.end);
+function updateForecastItems(weatherData){
+    const {
+        dt_txt: date,
+        weather: [{id}],
+        main: {temp}
+    } = weatherData;
+    const dateTaken = new Date(date)
+    const options= {day: "2-digit",
+                    month: "short"};
+    const future = dateTaken.toLocaleDateString("en-US", options);
+
+    const forecastItem = `<div class="forecast-item">
+                    <h5 class="forecast-item-date regular-txt">${future}</h5>
+                    <img src="${getWeatherIcon(id)}" class="forecast-item-img">
+                    <h5 class="forecast-item-temp">${temp.toFixed(1)}°F</h5>
+    </div>`;
+    forecastContainer.insertAdjacentHTML("beforeend",forecastItem);
 }
 
-function renderForecast(city, payload, limitToTripRange) { // Displays a list of forecast cards for a given city.
-  const f = document.getElementById("forecast");
-  const note = document.getElementById("location-note");
-  note.textContent = city;
+async function updateForecast(city){
+    const data = await getFetchData("forecast",city);
+    console.log(data);
+    const timeTaken = "12:00:00";
+    const date = new Date().toISOString().split('T')[0];
+    forecastContainer.innerHTML = "";
 
-  const days = payload.daily.time.map((t, i) => ({
-    date: t,
-    tmax: payload.daily.temperature_2m_max[i],
-    tmin: payload.daily.temperature_2m_min[i],
-    pop: payload.daily.precipitation_probability_mean[i]
-  }));
 
-  const filtered = limitToTripRange ? days.filter(d => withinTrip(d.date)) : days;
-  f.innerHTML = filtered.map(d => `
-    <div class="forecast-card">
-      <h4>${new Date(d.date).toLocaleDateString()}</h4>
-      <div>High: <strong>${Math.round(d.tmax)}°</strong></div>
-      <div>Low: <strong>${Math.round(d.tmin)}°</strong></div>
-      <div>Precip: <strong>${d.pop ?? 0}%</strong></div>
-    </div>
-  `).join("");
+    data.list.forEach(forecastWeather =>{
+                if(forecastWeather.dt_txt.includes(timeTaken) 
+            && !forecastWeather.dt_txt.includes(getCurrentDate())){
+        updateForecastItems(forecastWeather);
+
+        }
+    });
 }
 
-document.addEventListener("DOMContentLoaded", () => { // Once the page loads, initialize all weather search features.
-  const cityInput = document.getElementById("city");
-  const searchBtn = document.getElementById("search");
-  const useTripBtn = document.getElementById("use-trip-dates");
-  let lastCity = null;
-  let lastPayload = null;
+function getWeatherIcon(id){
+    if(id <= 232){return "svg/thunderstorm.svg";}
+    if(id <= 321){return "svg/drizzle.svg";}
+    if(id <= 531){return "svg/rain.svg";}
+    if(id <= 622){return "svg/snow.svg";}
+    if(id <= 781){return "svg/caution.svg";}
+    if(id <= 800){return "svg/sunny.svg";}
+    else return "svg/cloudy.svg";
 
-  async function doSearch(limitToTrip) { // Performs a weather search and displays the forecast.
-    const city = cityInput.value.trim();
-    if (!city) return;
-    const cached = getCachedWeather(city);
-    if (cached) {
-      lastCity = city;
-      lastPayload = cached;
-      renderForecast(city, cached, !!limitToTrip);
-      return;
+}
+
+function showDisplaySection(section){
+    [errscreen, searchsection, weathersection].forEach(section => section.style.display = "none");
+    section.style.display = "flex";
+    
+}
+
+async function updateWeatherInfo(city){
+    const weatherData = await getFetchData("weather", city);
+    
+    if(weatherData.cod != 200){
+        showDisplaySection(errscreen);
+        return ;
     }
-    try {
-      const { lat, lon, label } = await geocodeCity(city);
-      const data = await fetchForecast(lat, lon);
-      cacheWeather(city, data);
-      lastCity = label;
-      lastPayload = data;
-      renderForecast(label, data, !!limitToTrip);
-    } catch (e) {
-      document.getElementById("forecast").innerHTML = `<p class="muted">Could not fetch weather. Try again.</p>`;
-    }
-  }
+    console.log(weatherData);
 
-  searchBtn.addEventListener("click", () => doSearch(false)); // Shows the full forecast.
-  useTripBtn.addEventListener("click", () => { // Re-render only using the trip range if we already have fetched data. 
-    if (lastPayload && lastCity) renderForecast(lastCity, lastPayload, true);
-    else doSearch(true);
-  });
+    const {name: place, 
+            main: {temp, feels_like, humidity}, 
+            sys: {country},
+            weather: [{id, main}],
+            wind: {speed, gust}}= weatherData;
+
+    await updateForecast(city);
+    showDisplaySection(weathersection);
+    countrytxt.textContent = `${place}, ${country}`;
+    currentdate.textContent = getCurrentDate();
+    temptxt.textContent = temp.toFixed(1)+ "°F"; 
+    feelstxt.textContent = `Feels Like: ${feels_like.toFixed(0)}°F`;  
+    conditiontxt.textContent = main;
+    humiditytxt.textContent = humidity + "%";
+    if(!gust){windtxt.textContent = `${speed.toFixed(0)} MPH`}
+    else{windtxt.textContent = `${gust.toFixed(0)} MPH`;}
+
+    weatherimg.src = getWeatherIcon(id);
+}
+searchBtn.addEventListener("click", () =>{
+    if(cityInput.value.trim() != ""){
+        updateWeatherInfo(cityInput.value);
+        cityInput.value = "";
+        cityInput.blur();
+    }
+});
+cityInput.addEventListener("keydown", (event)=>{
+    if(event.key == "Enter" && 
+        cityInput.value.trim() != ""
+    ){
+    event.preventDefault();
+    updateWeatherInfo(cityInput.value);
+    cityInput.value = "";
+    cityInput.blur();
+}   
 });
