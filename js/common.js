@@ -41,7 +41,7 @@ document.addEventListener("DOMContentLoaded", () => { // Once the HTML document 
     const trips = listTrips();
     list.innerHTML = "";
     if (trips.length === 0) {
-      list.innerHTML = `<li class="muted">No trips yet — create one above.</li>`;
+      list.innerHTML = `<li class="muted">No trips yet – create one above.</li>`;
       return;
     }
     trips.forEach(t => { // For each trip, create a HTML element.

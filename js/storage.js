@@ -1,26 +1,43 @@
-const STORAGE_KEY = "tripit.v2"; // Key is used to store everything to a browser's localStorage.
+const STORAGE_KEY = "tripit.v3"; // Updated version for notifications - Key is used to store everything to a browser's localStorage.
 
 function loadState() { // Loads all stored data from localStorage.
-  try { return JSON.parse(localStorage.getItem(STORAGE_KEY)) || { trips: [], currentTripId: null }; }
-  catch { return { trips: [], currentTripId: null }; }
+  try { 
+    const data = JSON.parse(localStorage.getItem(STORAGE_KEY));
+    return data || { trips: [], currentTripId: null, notifications: [] };
+  }
+  catch { 
+    return { trips: [], currentTripId: null, notifications: [] };
+  }
 }
 
 function saveState(state) { // Saves the state to localStorage.
   localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
 }
 
-function getState() { return loadState(); } // A getter to load the latest stored data.
+function getState() {  // A getter to load the latest stored data.
+  return loadState(); 
+}
 
 function createTrip({ name, start, end }) { // Creates a new trip and makes it active.
   const st = loadState();
   const id = crypto.randomUUID();
-  st.trips.push({ id, name, start, end, agenda: {}, packing: [], weatherCache: {} });
+  st.trips.push({ 
+    id, 
+    name, 
+    start, 
+    end, 
+    agenda: {}, 
+    packing: [], 
+    weatherCache: {} 
+  });
   st.currentTripId = id;
   saveState(st);
   return id;
 }
 
-function listTrips() { return loadState().trips; } // Returns an array of all of the saved trips.
+function listTrips() {  // Returns an array of all of the saved trips.
+  return loadState().trips; 
+}
 
 function setCurrentTrip(id) { // Sets a specific trip as 'active'.
   const st = loadState();

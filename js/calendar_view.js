@@ -1,97 +1,111 @@
-let currentMonth = new Date(); // Calendar View - Shows agenda items in a monthly calendar.
+// Traditional Month Calendar Grid - Replaces FullCalendar.js with custom implementation
 
-function renderCalendar() {
+let currentMonth = new Date(); // Tracks the currently displayed month in the calendar
+
+function renderCalendar() { // Renders the monthly calendar view with agenda items
   const trip = getCurrentTrip();
   const grid = document.getElementById('calendar-grid');
   const monthTitle = document.getElementById('current-month');
   
   if (!grid || !monthTitle) return;
 
-  monthTitle.textContent = currentMonth.toLocaleDateString('en-US', { // Updates month title.
+  // Update month title
+  monthTitle.textContent = currentMonth.toLocaleDateString('en-US', { 
     month: 'long', 
     year: 'numeric' 
   });
 
-  const year = currentMonth.getFullYear(); // Get days in month.
+  // Get days in month
+  const year = currentMonth.getFullYear();
   const month = currentMonth.getMonth();
   const firstDay = new Date(year, month, 1);
   const lastDay = new Date(year, month + 1, 0);
   const daysInMonth = lastDay.getDate();
   const startingDayOfWeek = firstDay.getDay();
 
-  let html = '';  // Build calendar HTML.
+  // Build calendar HTML
+  let html = '';
   
-  ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'].forEach(day => {  // Day headers.
+  // Day headers (Sun, Mon, Tue, etc.)
+  ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'].forEach(day => {
     html += `<div class="calendar-day-header">${day}</div>`;
   });
 
-  for (let i = 0; i < startingDayOfWeek; i++) {  // Empty cells before month starts.
-    html += '<div class="calendar-day empty"></div>';
+  // Empty cells for days before month starts
+  const prevMonth = new Date(year, month, 0);
+  const prevMonthDays = prevMonth.getDate();
+  const daysToShow = prevMonthDays - startingDayOfWeek + 1;
+  
+  for (let i = 0; i < startingDayOfWeek; i++) {
+    const dayNum = daysToShow + i;
+    html += `<div class="calendar-day empty"><div class="day-number">${dayNum}</div></div>`;
   }
 
-  const today = new Date(); // Days of the month.
+  // Days of current month
+  const today = new Date();
   const todayStr = today.toISOString().split('T')[0];
 
   for (let day = 1; day <= daysInMonth; day++) {
     const date = new Date(year, month, day);
     const dateStr = date.toISOString().split('T')[0];
     const isToday = dateStr === todayStr;
-    const isInTrip = trip ? isDateInTrip(date, trip) : false;
     const agenda = trip?.agenda?.[dateStr] || [];
 
     let classes = 'calendar-day';
-    if (isInTrip) classes += ' in-trip';
     if (isToday) classes += ' today';
+
+    // Show first 3 events
+    const displayItems = agenda.slice(0, 3);
+    const remaining = agenda.length - displayItems.length;
 
     html += `<div class="${classes}">
       <div class="day-number">${day}</div>
       <div class="agenda-items">
-        ${agenda.slice(0, 3).map(item => {
-          const icon = item.tag === 'Travel' ? '✈️' : 
-                      item.tag === 'Lodging' ? '🏠' : 
-                      item.time ? '🕐' : '';
+        ${displayItems.map(item => {
           const itemClass = item.tag === 'Travel' ? 'travel' : 
                            item.tag === 'Lodging' ? 'lodging' : '';
-          return `
-            <div class="agenda-item ${itemClass}" title="${item.text}">
-              ${icon ? `<span class="agenda-item-icon">${icon}</span>` : ''}
-              <span>${item.text}</span>
-            </div>
-          `;
+          const displayText = item.time ? `${item.time} ${item.text}` : item.text;
+          return `<div class="agenda-item ${itemClass}" title="${displayText}">${displayText}</div>`;
         }).join('')}
-        ${agenda.length > 3 ? `<div class="agenda-more">+${agenda.length - 3} more</div>` : ''}
+        ${remaining > 0 ? `<div class="agenda-more">+${remaining} more</div>` : ''}
       </div>
     </div>`;
+  }
+
+  // Empty cells for days after month ends
+  const totalCells = startingDayOfWeek + daysInMonth;
+  const remainingCells = totalCells % 7;
+  if (remainingCells > 0) {
+    for (let i = 1; i <= 7 - remainingCells; i++) {
+      html += `<div class="calendar-day empty"><div class="day-number">${i}</div></div>`;
+    }
   }
 
   grid.innerHTML = html;
 }
 
-function isDateInTrip(date, trip) {
-  const dateStr = date.toISOString().split('T')[0];
-  return dateStr >= trip.start && dateStr <= trip.end;
-}
-
-function changeMonth(delta) {
+function changeMonth(delta) { // Changes the displayed month by the given delta (-1 for previous, +1 for next)
   currentMonth = new Date(currentMonth.getFullYear(), currentMonth.getMonth() + delta, 1);
   renderCalendar();
 }
 
-function goToToday() {
+function goToToday() { // Navigates the calendar to the current month
   currentMonth = new Date();
   renderCalendar();
 }
 
-document.addEventListener('DOMContentLoaded', () => {
+document.addEventListener('DOMContentLoaded', () => { // Initialize the calendar view when the page loads
   const trip = getCurrentTrip();
   
   if (trip) {
-    currentMonth = new Date(trip.start + 'T00:00:00'); // Start at trip start month.
+    // Start at trip start month
+    currentMonth = new Date(trip.start + 'T00:00:00');
   }
 
   renderCalendar();
 
-  const prevBtn = document.getElementById('prev-month'); // Navigation buttons.
+  // Navigation buttons
+  const prevBtn = document.getElementById('prev-month');
   const nextBtn = document.getElementById('next-month');
   const todayBtn = document.getElementById('today-btn');
 
